@@ -90,9 +90,9 @@ def home_page():
 pg = st.navigation(
     [
         st.Page(home_page, title="Home", icon=":material/home:"),
-        st.Page("pages/1_View_Recipes.py", title="View Recipes", icon=":material/menu_book:"),
-        st.Page("pages/2_Create_Recipe.py", title="Create Recipe", icon=":material/add_circle:"),
-        st.Page("pages/3_Shopping_List.py", title="Shopping List", icon=":material/shopping_cart:"),
+        st.Page("pages/1_View_Recipes.py", title="Recipes", icon=":material/menu_book:"),
+        st.Page("pages/2_Create_Recipe.py", title="Create", icon=":material/add_circle:"),
+        st.Page("pages/6_Manage_Ingredients.py", title="Ingredients", icon=":material/egg:"),
         st.Page("pages/4_Manage_Categories.py", title="Categories", icon=":material/category:"),
         st.Page("pages/5_Manage_Stores.py", title="Stores", icon=":material/store:"),
     ],
