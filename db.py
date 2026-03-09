@@ -22,6 +22,13 @@ def _get_token():
 
 def get_connection():
     global _connection
+    if _connection is not None:
+        # Check if connection is still valid
+        try:
+            _connection.execute("SELECT 1").fetchone()
+        except Exception:
+            _connection = None
+
     if _connection is None:
         token = _get_token()
         temp_con = duckdb.connect(f"md:?motherduck_token={token}")
@@ -49,8 +56,16 @@ def clear_cache():
         st.cache_data.clear()
 
 
+_db_initialized = False
+
+
 def init_db():
     """Initialize database schema and run migrations if needed."""
+    global _db_initialized
+    if _db_initialized:
+        return
+    _db_initialized = True
+
     con = get_connection()
 
     # Create recipes table (unchanged)
