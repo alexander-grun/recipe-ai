@@ -96,9 +96,49 @@ def init_db():
         )
     """)
 
+    # Categories table
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS categories (
+            id INTEGER PRIMARY KEY,
+            name VARCHAR UNIQUE NOT NULL
+        )
+    """)
+
+    # Stores table
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS stores (
+            id INTEGER PRIMARY KEY,
+            name VARCHAR UNIQUE NOT NULL
+        )
+    """)
+
+    # Telegram users table (to send messages from web app)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS telegram_users (
+            chat_id BIGINT PRIMARY KEY,
+            username VARCHAR,
+            first_name VARCHAR
+        )
+    """)
+
     con.execute("CREATE SEQUENCE IF NOT EXISTS recipes_seq START 1")
     con.execute("CREATE SEQUENCE IF NOT EXISTS ingredients_seq START 1")
     con.execute("CREATE SEQUENCE IF NOT EXISTS recipe_ingredients_seq START 1")
+    con.execute("CREATE SEQUENCE IF NOT EXISTS categories_seq START 1")
+    con.execute("CREATE SEQUENCE IF NOT EXISTS stores_seq START 1")
+
+    # Migration: add category_id and store_id columns to ingredients if not exists
+    columns = con.execute("""
+        SELECT column_name FROM duckdb_columns()
+        WHERE database_name = 'recipe_app' AND table_name = 'ingredients'
+    """).fetchall()
+    column_names = [c[0] for c in columns]
+
+    if 'category_id' not in column_names:
+        con.execute("ALTER TABLE ingredients ADD COLUMN category_id INTEGER")
+
+    if 'store_id' not in column_names:
+        con.execute("ALTER TABLE ingredients ADD COLUMN store_id INTEGER")
 
 
 def _migrate_to_new_schema(con):
@@ -224,18 +264,162 @@ def delete_recipe(recipe_id: int):
     clear_cache()
 
 
+# ============ Category CRUD ============
+
+def add_category(name: str) -> int:
+    """Add a new category and return its ID."""
+    con = get_connection()
+    cat_id = con.execute("SELECT nextval('categories_seq')").fetchone()[0]
+    con.execute("INSERT INTO categories (id, name) VALUES (?, ?)", [cat_id, name])
+    clear_cache()
+    return cat_id
+
+
+def get_categories() -> list[tuple[int, str]]:
+    """Get all categories, optionally cached."""
+    if _is_streamlit_context():
+        return _get_categories_cached()
+    return _get_categories_uncached()
+
+
+def _get_categories_uncached() -> list[tuple[int, str]]:
+    con = get_connection()
+    return con.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+
+
+def _get_categories_cached():
+    import streamlit as st
+
+    @st.cache_data(ttl=60)
+    def fetch():
+        con = get_connection()
+        return con.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+
+    return fetch()
+
+
+def update_category_name(category_id: int, new_name: str):
+    """Update category name."""
+    con = get_connection()
+    con.execute("UPDATE categories SET name = ? WHERE id = ?", [new_name, category_id])
+    clear_cache()
+
+
+def delete_category(category_id: int):
+    """Delete a category, setting ingredients to uncategorized first."""
+    con = get_connection()
+    con.execute("UPDATE ingredients SET category_id = NULL WHERE category_id = ?", [category_id])
+    con.execute("DELETE FROM categories WHERE id = ?", [category_id])
+    clear_cache()
+
+
+def set_ingredient_category(ingredient_id: int, category_id: int | None):
+    """Set or clear the category for an ingredient."""
+    con = get_connection()
+    con.execute("UPDATE ingredients SET category_id = ? WHERE id = ?", [category_id, ingredient_id])
+    clear_cache()
+
+
+def get_ingredients_by_category(category_id: int | None) -> list[tuple[int, str]]:
+    """Get ingredients by category. Pass None for uncategorized."""
+    con = get_connection()
+    if category_id is None:
+        return con.execute(
+            "SELECT id, name FROM ingredients WHERE category_id IS NULL ORDER BY name"
+        ).fetchall()
+    return con.execute(
+        "SELECT id, name FROM ingredients WHERE category_id = ? ORDER BY name",
+        [category_id]
+    ).fetchall()
+
+
+# ============ Store CRUD ============
+
+def add_store(name: str) -> int:
+    """Add a new store and return its ID."""
+    con = get_connection()
+    store_id = con.execute("SELECT nextval('stores_seq')").fetchone()[0]
+    con.execute("INSERT INTO stores (id, name) VALUES (?, ?)", [store_id, name])
+    clear_cache()
+    return store_id
+
+
+def get_stores() -> list[tuple[int, str]]:
+    """Get all stores, optionally cached."""
+    if _is_streamlit_context():
+        return _get_stores_cached()
+    return _get_stores_uncached()
+
+
+def _get_stores_uncached() -> list[tuple[int, str]]:
+    con = get_connection()
+    return con.execute("SELECT id, name FROM stores ORDER BY name").fetchall()
+
+
+def _get_stores_cached():
+    import streamlit as st
+
+    @st.cache_data(ttl=60)
+    def fetch():
+        con = get_connection()
+        return con.execute("SELECT id, name FROM stores ORDER BY name").fetchall()
+
+    return fetch()
+
+
+def update_store_name(store_id: int, new_name: str):
+    """Update store name."""
+    con = get_connection()
+    con.execute("UPDATE stores SET name = ? WHERE id = ?", [new_name, store_id])
+    clear_cache()
+
+
+def delete_store(store_id: int):
+    """Delete a store, setting ingredients to no store first."""
+    con = get_connection()
+    con.execute("UPDATE ingredients SET store_id = NULL WHERE store_id = ?", [store_id])
+    con.execute("DELETE FROM stores WHERE id = ?", [store_id])
+    clear_cache()
+
+
+def set_ingredient_store(ingredient_id: int, store_id: int | None):
+    """Set or clear the store for an ingredient."""
+    con = get_connection()
+    con.execute("UPDATE ingredients SET store_id = ? WHERE id = ?", [store_id, ingredient_id])
+    clear_cache()
+
+
+def get_ingredients_by_store(store_id: int | None) -> list[tuple[int, str]]:
+    """Get ingredients by store. Pass None for ingredients without a specific store."""
+    con = get_connection()
+    if store_id is None:
+        return con.execute(
+            "SELECT id, name FROM ingredients WHERE store_id IS NULL ORDER BY name"
+        ).fetchall()
+    return con.execute(
+        "SELECT id, name FROM ingredients WHERE store_id = ? ORDER BY name",
+        [store_id]
+    ).fetchall()
+
+
 # ============ Ingredient Catalog CRUD ============
 
-def get_all_ingredients() -> list[tuple[int, str]]:
-    """Get all ingredients from catalog, optionally cached."""
+def get_all_ingredients() -> list[tuple[int, str, int | None, str | None, int | None, str | None]]:
+    """Get all ingredients with category and store info: (id, name, category_id, category_name, store_id, store_name)."""
     if _is_streamlit_context():
         return _get_all_ingredients_cached()
     return _get_all_ingredients_uncached()
 
 
-def _get_all_ingredients_uncached() -> list[tuple[int, str]]:
+def _get_all_ingredients_uncached() -> list[tuple[int, str, int | None, str | None, int | None, str | None]]:
     con = get_connection()
-    return con.execute("SELECT id, name FROM ingredients ORDER BY name").fetchall()
+    return con.execute("""
+        SELECT i.id, i.name, i.category_id, c.name, i.store_id, s.name
+        FROM ingredients i
+        LEFT JOIN categories c ON i.category_id = c.id
+        LEFT JOIN stores s ON i.store_id = s.id
+        ORDER BY i.name
+    """).fetchall()
 
 
 def _get_all_ingredients_cached():
@@ -244,12 +428,18 @@ def _get_all_ingredients_cached():
     @st.cache_data(ttl=60)
     def fetch():
         con = get_connection()
-        return con.execute("SELECT id, name FROM ingredients ORDER BY name").fetchall()
+        return con.execute("""
+            SELECT i.id, i.name, i.category_id, c.name, i.store_id, s.name
+            FROM ingredients i
+            LEFT JOIN categories c ON i.category_id = c.id
+            LEFT JOIN stores s ON i.store_id = s.id
+            ORDER BY i.name
+        """).fetchall()
 
     return fetch()
 
 
-def get_or_create_ingredient(name: str) -> int:
+def get_or_create_ingredient(name: str, category_id: int | None = None, store_id: int | None = None) -> int:
     """Get ingredient ID by name, or create if not exists."""
     con = get_connection()
     result = con.execute("SELECT id FROM ingredients WHERE LOWER(name) = LOWER(?)", [name]).fetchone()
@@ -257,7 +447,7 @@ def get_or_create_ingredient(name: str) -> int:
         return result[0]
 
     ing_id = con.execute("SELECT nextval('ingredients_seq')").fetchone()[0]
-    con.execute("INSERT INTO ingredients (id, name) VALUES (?, ?)", [ing_id, name])
+    con.execute("INSERT INTO ingredients (id, name, category_id, store_id) VALUES (?, ?, ?, ?)", [ing_id, name, category_id, store_id])
     clear_cache()
     return ing_id
 
@@ -375,7 +565,34 @@ def get_stats() -> dict:
     con = get_connection()
     recipe_count = con.execute("SELECT COUNT(*) FROM recipes").fetchone()[0]
     ingredient_count = con.execute("SELECT COUNT(*) FROM ingredients").fetchone()[0]
+    category_count = con.execute("SELECT COUNT(*) FROM categories").fetchone()[0]
+    store_count = con.execute("SELECT COUNT(*) FROM stores").fetchone()[0]
     return {
         "recipe_count": recipe_count,
         "ingredient_count": ingredient_count,
+        "category_count": category_count,
+        "store_count": store_count,
     }
+
+
+# ============ Telegram Users ============
+
+def save_telegram_user(chat_id: int, username: str | None, first_name: str | None):
+    """Save or update a Telegram user."""
+    con = get_connection()
+    con.execute("""
+        INSERT OR REPLACE INTO telegram_users (chat_id, username, first_name)
+        VALUES (?, ?, ?)
+    """, [chat_id, username, first_name])
+
+
+def get_telegram_users() -> list[tuple[int, str | None, str | None]]:
+    """Get all saved Telegram users."""
+    con = get_connection()
+    return con.execute("SELECT chat_id, username, first_name FROM telegram_users").fetchall()
+
+
+def get_telegram_user_count() -> int:
+    """Get count of saved Telegram users."""
+    con = get_connection()
+    return con.execute("SELECT COUNT(*) FROM telegram_users").fetchone()[0]

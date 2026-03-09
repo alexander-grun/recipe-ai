@@ -29,15 +29,25 @@ def get_bot_token() -> str:
         raise ValueError(f"Could not load BOT_TOKEN: {e}")
 
 
+def save_user(update: Update):
+    """Save user info to database for sending messages from web app."""
+    user = update.effective_user
+    chat_id = update.effective_chat.id
+    db.save_telegram_user(chat_id, user.username if user else None, user.first_name if user else None)
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    save_user(update)
     await update.message.reply_text(
         "Recipe Bot Commands:\n"
         "/list - Show all recipes with IDs\n"
-        "/view <id> - View recipe ingredients by ID"
+        "/view <id> - View recipe ingredients by ID\n\n"
+        "You're now registered to receive shopping lists from the web app!"
     )
 
 
 async def list_recipes(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    save_user(update)
     recipes = db.get_recipes()
     if not recipes:
         await update.message.reply_text("No recipes yet.")

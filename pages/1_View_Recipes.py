@@ -88,19 +88,30 @@ st.subheader("Add Ingredient")
 
 all_ingredients = db.get_all_ingredients()
 existing_ing_ids = {ing_id for ing_id, _, _ in ingredients}
-available_ingredients = [(id, name) for id, name in all_ingredients if id not in existing_ing_ids]
+# all_ingredients is now (id, name, category_id, category_name, store_id, store_name)
+available_ingredients = [(id, name, cat_name, store_name) for id, name, _, cat_name, _, store_name in all_ingredients if id not in existing_ing_ids]
 
 tab_existing, tab_new = st.tabs(["From Catalog", "Create New"])
 
 with tab_existing:
     if available_ingredients:
-        ing_options = {name: id for id, name in available_ingredients}
-        selected_ing = st.selectbox("Select Ingredient", options=list(ing_options.keys()))
+        def format_display(name, cat_name, store_name):
+            parts = []
+            if cat_name:
+                parts.append(cat_name)
+            if store_name:
+                parts.append(f"@ {store_name}")
+            return f"{name} ({', '.join(parts)})" if parts else name
+
+        ing_display = [format_display(name, cat_name, store_name) for _, name, cat_name, store_name in available_ingredients]
+        ing_map = {display: (id, name) for display, (id, name, _, _) in zip(ing_display, available_ingredients)}
+        selected_display = st.selectbox("Select Ingredient", options=ing_display)
+        selected_id, selected_name_val = ing_map[selected_display]
         quantity = st.text_input("Quantity", key="existing_qty")
         if st.button("Add to Recipe", key="add_existing"):
             if quantity.strip():
-                db.add_ingredient_to_recipe(recipe_id, ing_options[selected_ing], quantity.strip())
-                st.success(f"Added {selected_ing}")
+                db.add_ingredient_to_recipe(recipe_id, selected_id, quantity.strip())
+                st.success(f"Added {selected_name_val}")
                 st.rerun()
             else:
                 st.warning("Please enter a quantity")
@@ -110,9 +121,24 @@ with tab_existing:
 with tab_new:
     new_ing_name = st.text_input("New Ingredient Name")
     new_ing_qty = st.text_input("Quantity", key="new_qty")
+
+    # Category selection (optional)
+    categories = db.get_categories()
+    cat_options = ["No category"] + [name for _, name in categories]
+    cat_map = {name: id for id, name in categories}
+    selected_cat = st.selectbox("Category (optional)", options=cat_options, key="new_ing_cat")
+
+    # Store selection (optional)
+    stores = db.get_stores()
+    store_options = ["Any store"] + [name for _, name in stores]
+    store_map = {name: id for id, name in stores}
+    selected_store = st.selectbox("Sold at (optional)", options=store_options, key="new_ing_store")
+
     if st.button("Create & Add", key="add_new"):
         if new_ing_name.strip() and new_ing_qty.strip():
-            ing_id = db.get_or_create_ingredient(new_ing_name.strip())
+            cat_id = cat_map.get(selected_cat) if selected_cat != "No category" else None
+            store_id = store_map.get(selected_store) if selected_store != "Any store" else None
+            ing_id = db.get_or_create_ingredient(new_ing_name.strip(), cat_id, store_id)
             if ing_id in existing_ing_ids:
                 st.error("This ingredient is already in the recipe!")
             else:
