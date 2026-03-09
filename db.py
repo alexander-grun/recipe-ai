@@ -1,23 +1,7 @@
 import duckdb
+from utils import get_secret
 
 _connection = None
-
-
-def _get_token():
-    try:
-        import streamlit as st
-        return st.secrets["MOTHERDUCK_TOKEN"]
-    except Exception:
-        pass
-    try:
-        import tomllib
-        from pathlib import Path
-        secrets_path = Path(__file__).parent / ".streamlit" / "secrets.toml"
-        with open(secrets_path, "rb") as f:
-            secrets = tomllib.load(f)
-        return secrets["MOTHERDUCK_TOKEN"]
-    except Exception as e:
-        raise ValueError(f"Could not load MOTHERDUCK_TOKEN: {e}")
 
 
 def get_connection():
@@ -30,7 +14,7 @@ def get_connection():
             _connection = None
 
     if _connection is None:
-        token = _get_token()
+        token = get_secret("MOTHERDUCK_TOKEN")
         temp_con = duckdb.connect(f"md:?motherduck_token={token}")
         temp_con.execute("CREATE DATABASE IF NOT EXISTS recipe_app")
         temp_con.close()
@@ -609,3 +593,15 @@ def get_telegram_user_count() -> int:
     """Get count of saved Telegram users."""
     con = get_connection()
     return con.execute("SELECT COUNT(*) FROM telegram_users").fetchone()[0]
+
+
+def get_recipes_for_ingredient(ingredient_id: int) -> list[tuple[int, str]]:
+    """Get all recipes that use a specific ingredient."""
+    con = get_connection()
+    return con.execute("""
+        SELECT r.id, r.name
+        FROM recipes r
+        JOIN recipe_ingredients ri ON r.id = ri.recipe_id
+        WHERE ri.ingredient_id = ?
+        ORDER BY r.name
+    """, [ingredient_id]).fetchall()

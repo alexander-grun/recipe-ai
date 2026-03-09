@@ -1,5 +1,6 @@
 import streamlit as st
 import db
+from utils import format_ingredient_display
 
 db.init_db()
 
@@ -236,15 +237,7 @@ with tab_ingredients:
     # Edit ingredient (collapsed expander)
     if all_ingredients:
         with st.expander("Edit Ingredient"):
-            def format_ingredient(name, cat_name, store_name):
-                parts = []
-                if cat_name:
-                    parts.append(cat_name)
-                if store_name:
-                    parts.append(f"@ {store_name}")
-                return f"{name} ({', '.join(parts)})" if parts else name
-
-            ing_display = [format_ingredient(name, cat_name, store_name)
+            ing_display = [format_ingredient_display(name, cat_name, store_name)
                            for _, name, _, cat_name, _, store_name in all_ingredients]
             ing_map = {display: (id, name, cat_id, store_id)
                        for display, (id, name, cat_id, _, store_id, _) in zip(ing_display, all_ingredients)}
@@ -286,14 +279,8 @@ with tab_ingredients:
 
             # Show which recipes use this ingredient
             st.caption("Used in recipes")
-            recipes = db.get_recipes()
-            used_in = []
-            for recipe_id, recipe_name in recipes:
-                ingredients = db.get_recipe_ingredients(recipe_id)
-                if any(ing_id == selected_id for ing_id, _, _ in ingredients):
-                    used_in.append(recipe_name)
-
+            used_in = db.get_recipes_for_ingredient(selected_id)
             if used_in:
-                st.write(", ".join(used_in))
+                st.write(", ".join(name for _, name in used_in))
             else:
                 st.write("Not used in any recipes.")

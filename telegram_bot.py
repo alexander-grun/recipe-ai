@@ -2,6 +2,7 @@ import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 import db
+from utils import get_secret
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -10,23 +11,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 db.init_db()
-
-
-def get_bot_token() -> str:
-    try:
-        import streamlit as st
-        return st.secrets["BOT_TOKEN"]
-    except Exception:
-        pass
-    try:
-        import tomllib
-        from pathlib import Path
-        secrets_path = Path(__file__).parent / ".streamlit" / "secrets.toml"
-        with open(secrets_path, "rb") as f:
-            secrets = tomllib.load(f)
-        return secrets["BOT_TOKEN"]
-    except Exception as e:
-        raise ValueError(f"Could not load BOT_TOKEN: {e}")
 
 
 def save_user(update: Update):
@@ -85,7 +69,7 @@ async def view_recipe(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
-    token = get_bot_token()
+    token = get_secret("BOT_TOKEN")
     app = Application.builder().token(token).build()
 
     app.add_handler(CommandHandler("start", start))

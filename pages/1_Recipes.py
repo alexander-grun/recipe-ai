@@ -1,5 +1,6 @@
 import streamlit as st
 import db
+from utils import format_ingredient_display
 
 db.init_db()
 
@@ -107,15 +108,7 @@ with tab_view:
 
             with view_tab_existing:
                 if available_ingredients:
-                    def format_display(name, cat_name, store_name):
-                        parts = []
-                        if cat_name:
-                            parts.append(cat_name)
-                        if store_name:
-                            parts.append(f"@ {store_name}")
-                        return f"{name} ({', '.join(parts)})" if parts else name
-
-                    ing_display = [format_display(name, cat_name, store_name)
+                    ing_display = [format_ingredient_display(name, cat_name, store_name)
                                    for _, name, cat_name, store_name in available_ingredients]
                     ing_map = {display: (id, name) for display, (id, name, _, _)
                                in zip(ing_display, available_ingredients)}
@@ -239,15 +232,7 @@ with tab_create:
                              for id, name, _, cat_name, _, store_name in all_ingredients
                              if name.lower() not in added_names]
                 if available:
-                    def format_display_create(name, cat_name, store_name):
-                        parts = []
-                        if cat_name:
-                            parts.append(cat_name)
-                        if store_name:
-                            parts.append(f"@ {store_name}")
-                        return f"{name} ({', '.join(parts)})" if parts else name
-
-                    ing_display = [format_display_create(name, cat_name, store_name)
+                    ing_display = [format_ingredient_display(name, cat_name, store_name)
                                    for _, name, cat_name, store_name in available]
                     ing_map = {display: (name, cat_name, store_name)
                                for display, (_, name, cat_name, store_name) in zip(ing_display, available)}

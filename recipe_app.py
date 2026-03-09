@@ -36,23 +36,32 @@ def home_page():
         shopping_list = db.generate_shopping_list(selected_ids)
 
         if shopping_list:
-            # Group by store if available
+            # Get ingredient info for grouping
             all_ingredients = {name: (cat_id, cat_name, store_id, store_name)
                               for _, name, cat_id, cat_name, store_id, store_name in db.get_all_ingredients()}
 
-            # Build text output grouped by store
-            by_store = {}
+            # Build text output grouped by category, then by store
+            by_cat_store = {}  # {category: {store: [items]}}
             for ingredient, quantities in shopping_list:
                 info = all_ingredients.get(ingredient, (None, None, None, None))
-                store_name = info[3] or "Any store"
-                if store_name not in by_store:
-                    by_store[store_name] = []
-                by_store[store_name].append(f"- {ingredient}: {quantities}")
+                cat_name = info[1] or "Other"
+                store_name = info[3] or ""  # Empty string for "any store"
+
+                if cat_name not in by_cat_store:
+                    by_cat_store[cat_name] = {}
+                if store_name not in by_cat_store[cat_name]:
+                    by_cat_store[cat_name][store_name] = []
+                by_cat_store[cat_name][store_name].append(f"- {ingredient}: {quantities}")
 
             text_lines = [f"Shopping List: {', '.join(selected_recipes)}", ""]
-            for store in sorted(by_store.keys(), key=lambda x: (x == "Any store", x)):
-                text_lines.append(f"**{store}**")
-                text_lines.extend(by_store[store])
+            for cat in sorted(by_cat_store.keys(), key=lambda x: (x == "Other", x)):
+                text_lines.append(f"**{cat}**")
+                stores = by_cat_store[cat]
+                # Sort: empty store (any) first, then alphabetical
+                for store in sorted(stores.keys(), key=lambda x: (x != "", x)):
+                    if store:
+                        text_lines.append(f"  @ {store}:")
+                    text_lines.extend(f"    {item}" if store else f"  {item}" for item in stores[store])
                 text_lines.append("")
 
             with st.container(border=True):
