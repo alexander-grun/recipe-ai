@@ -46,10 +46,14 @@ This is a recipe management app with two interfaces sharing a cloud database:
 
 ## Streamlit Rules
 
-- Use `width='stretch'` instead of `use_container_width=True` (deprecated, removed after 2025-12-31)
-- Use `width='content'` instead of `use_container_width=False`
-- Navigation uses `st.navigation()` with `position="top"` for horizontal menu
-- Use `st.container(border=True)` to group related sections (not `st.divider()`)
+- Avoid deprecated `use_container_width` param (use `width='stretch'` or `width='content'`)
+- Navigation: `st.navigation()` with `position="top"` for horizontal menu
+- Use `st.container(border=True)` to group sections, `st.expander()` for secondary actions
+- Mobile-first: single-column layouts, avoid multi-column for main content
+
+## Page Structure
+
+3 pages: **Shop** (shopping list) | **Recipes** (View/Create tabs) | **Data** (Categories/Stores/Ingredients tabs)
 
 ## Database Schema
 

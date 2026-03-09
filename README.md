@@ -6,8 +6,8 @@ A recipe management app with Streamlit web UI and Telegram bot, using MotherDuck
 
 - Create and manage recipes with ingredients
 - Organize ingredients by category and store
-- Generate shopping lists grouped by store (via Telegram)
-- Read-only Telegram bot for viewing recipes on the go
+- Generate shopping lists grouped by store
+- Send lists to Telegram or download as text
 - Data persists in MotherDuck cloud
 
 ## Setup
