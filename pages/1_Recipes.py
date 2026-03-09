@@ -23,7 +23,7 @@ with tab_view:
     # Undo deleted ingredient
     if deleted := st.session_state.get("last_deleted_ing"):
         st.info(f"Removed '{deleted['ing_name']}' from recipe")
-        if st.button("Undo", width="stretch", key="view_undo"):
+        if st.button("Undo", key="view_undo"):
             db.add_ingredient_to_recipe(deleted["recipe_id"], deleted["ing_id"], deleted["quantity"])
             st.session_state.pop("last_deleted_ing")
             st.session_state["recipe_success_msg"] = f"Restored '{deleted['ing_name']}'"
@@ -56,17 +56,17 @@ with tab_view:
                         new_qty = st.text_input("New quantity", value=quantity, key=f"view_edit_qty_{ing_id}")
                         col_save, col_del, col_cancel = st.columns(3)
                         with col_save:
-                            if st.button("Save", key=f"view_save_{ing_id}", width="stretch"):
+                            if st.button("Save", key=f"view_save_{ing_id}"):
                                 if new_qty.strip() and new_qty != quantity:
                                     db.update_recipe_ingredient(recipe_id, ing_id, new_qty.strip())
                                     st.session_state["recipe_success_msg"] = "Quantity updated!"
                                 st.session_state.pop("editing_ing", None)
                                 st.rerun()
                         with col_del:
-                            if st.button("Remove", key=f"view_del_{ing_id}", type="secondary", width="stretch"):
+                            if st.button("Remove", key=f"view_del_{ing_id}", type="secondary"):
                                 st.session_state["confirm_del_ing"] = {"id": ing_id, "name": ing_name, "quantity": quantity}
                         with col_cancel:
-                            if st.button("Cancel", key=f"view_cancel_{ing_id}", width="stretch"):
+                            if st.button("Cancel", key=f"view_cancel_{ing_id}"):
                                 st.session_state.pop("editing_ing", None)
                                 st.rerun()
 
@@ -75,7 +75,7 @@ with tab_view:
                             st.warning(f"Remove '{ing_name}'?")
                             col_yes, col_no = st.columns(2)
                             with col_yes:
-                                if st.button("Yes", key=f"view_confirm_yes_{ing_id}", type="primary", width="stretch"):
+                                if st.button("Yes", key=f"view_confirm_yes_{ing_id}", type="primary"):
                                     db.remove_ingredient_from_recipe(recipe_id, ing_id)
                                     st.session_state.pop("confirm_del_ing")
                                     st.session_state.pop("editing_ing", None)
@@ -87,11 +87,11 @@ with tab_view:
                                     }
                                     st.rerun()
                             with col_no:
-                                if st.button("No", key=f"view_confirm_no_{ing_id}", width="stretch"):
+                                if st.button("No", key=f"view_confirm_no_{ing_id}"):
                                     st.session_state.pop("confirm_del_ing")
                                     st.rerun()
                     else:
-                        if st.button("Edit", key=f"view_edit_btn_{ing_id}", width="stretch"):
+                        if st.button("Edit", key=f"view_edit_btn_{ing_id}"):
                             st.session_state["editing_ing"] = ing_id
                             st.rerun()
 
@@ -122,7 +122,7 @@ with tab_view:
                     selected_display = st.selectbox("Select Ingredient", options=ing_display, key="view_add_existing_select")
                     selected_id, selected_name_val = ing_map[selected_display]
                     quantity = st.text_input("Quantity", key="view_existing_qty")
-                    if st.button("Add to Recipe", key="view_add_existing", width="stretch"):
+                    if st.button("Add to Recipe", key="view_add_existing"):
                         if quantity.strip():
                             db.add_ingredient_to_recipe(recipe_id, selected_id, quantity.strip())
                             st.session_state["recipe_success_msg"] = f"Added {selected_name_val}"
@@ -146,7 +146,7 @@ with tab_view:
                 store_map = {name: id for id, name in stores}
                 selected_store = st.selectbox("Sold at (optional)", options=store_options, key="view_new_ing_store")
 
-                if st.button("Create & Add", key="view_add_new", width="stretch"):
+                if st.button("Create & Add", key="view_add_new"):
                     if new_ing_name.strip() and new_ing_qty.strip():
                         cat_id = cat_map.get(selected_cat) if selected_cat != "No category" else None
                         store_id = store_map.get(selected_store) if selected_store != "Any store" else None
@@ -163,7 +163,7 @@ with tab_view:
         # Recipe Settings
         with st.expander("Recipe Settings"):
             new_name = st.text_input("Rename recipe", value=selected_name, key="view_rename_input")
-            if st.button("Save Name", width="stretch", key="view_save_name"):
+            if st.button("Save Name", key="view_save_name"):
                 if new_name.strip() and new_name.strip() != selected_name:
                     try:
                         db.update_recipe_name(recipe_id, new_name.strip())
@@ -177,20 +177,20 @@ with tab_view:
 
             st.divider()
 
-            if st.button("Delete Recipe", type="secondary", width="stretch", key="view_delete"):
+            if st.button("Delete Recipe", type="secondary", key="view_delete"):
                 st.session_state["confirm_delete"] = True
 
             if st.session_state.get("confirm_delete"):
                 st.warning(f"Delete '{selected_name}'?")
                 col_yes, col_no = st.columns(2)
                 with col_yes:
-                    if st.button("Yes", type="primary", key="view_confirm_del_yes", width="stretch"):
+                    if st.button("Yes", type="primary", key="view_confirm_del_yes"):
                         db.delete_recipe(recipe_id)
                         st.session_state["confirm_delete"] = False
                         st.session_state["recipe_success_msg"] = f"Deleted: {selected_name}"
                         st.rerun()
                 with col_no:
-                    if st.button("No", key="view_confirm_del_no", width="stretch"):
+                    if st.button("No", key="view_confirm_del_no"):
                         st.session_state["confirm_delete"] = False
                         st.rerun()
 
@@ -220,7 +220,7 @@ with tab_create:
                 display = parts[0] if len(parts) == 1 else f"{parts[0]} ({', '.join(parts[1:])})"
 
                 st.write(f"- **{display}**: {qty}")
-                if st.button("Remove", key=f"create_remove_{i}", width="stretch"):
+                if st.button("Remove", key=f"create_remove_{i}"):
                     st.session_state["new_recipe_ingredients"].pop(i)
                     st.rerun()
         else:
@@ -254,7 +254,7 @@ with tab_create:
                     selected_display = st.selectbox("Select Ingredient", options=ing_display, key="create_cat_select")
                     selected_ing, cat_name, store_name = ing_map[selected_display]
                     quantity = st.text_input("Quantity", key="create_cat_qty")
-                    if st.button("Add", key="create_add_cat", width="stretch"):
+                    if st.button("Add", key="create_add_cat"):
                         if quantity.strip():
                             st.session_state["new_recipe_ingredients"].append(
                                 (selected_ing, quantity.strip(), cat_name, store_name))
@@ -278,7 +278,7 @@ with tab_create:
             store_options = ["Any store"] + [name for _, name in stores]
             selected_store = st.selectbox("Sold at (optional)", options=store_options, key="create_new_ing_store")
 
-            if st.button("Add", key="create_add_new", width="stretch"):
+            if st.button("Add", key="create_add_new"):
                 if new_ing.strip() and new_qty.strip():
                     if new_ing.strip().lower() in added_names:
                         st.error("This ingredient is already added!")
@@ -294,7 +294,7 @@ with tab_create:
     # Save / Clear
     st.divider()
 
-    if st.button("Save Recipe", type="primary", width="stretch", key="create_save"):
+    if st.button("Save Recipe", type="primary", key="create_save"):
         if not recipe_name.strip():
             st.error("Please enter a recipe name")
         elif not st.session_state["new_recipe_ingredients"]:
@@ -325,6 +325,6 @@ with tab_create:
                 else:
                     st.error(f"Error: {e}")
 
-    if st.button("Clear All", width="stretch", key="create_clear"):
+    if st.button("Clear All", key="create_clear"):
         st.session_state["new_recipe_ingredients"] = []
         st.rerun()
