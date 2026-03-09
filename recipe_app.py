@@ -9,6 +9,8 @@ db.init_db()
 
 # todo create a backup logic for DB
 # todo create login with a pin
+# todo add a gallery with pics to browse recepies
+
 
 
 
