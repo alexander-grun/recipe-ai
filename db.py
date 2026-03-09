@@ -128,17 +128,15 @@ def init_db():
     con.execute("CREATE SEQUENCE IF NOT EXISTS stores_seq START 1")
 
     # Migration: add category_id and store_id columns to ingredients if not exists
-    columns = con.execute("""
-        SELECT column_name FROM duckdb_columns()
-        WHERE database_name = 'recipe_app' AND table_name = 'ingredients'
-    """).fetchall()
-    column_names = [c[0] for c in columns]
-
-    if 'category_id' not in column_names:
+    try:
         con.execute("ALTER TABLE ingredients ADD COLUMN category_id INTEGER")
+    except Exception:
+        pass  # Column already exists
 
-    if 'store_id' not in column_names:
+    try:
         con.execute("ALTER TABLE ingredients ADD COLUMN store_id INTEGER")
+    except Exception:
+        pass  # Column already exists
 
 
 def _migrate_to_new_schema(con):
