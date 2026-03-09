@@ -32,85 +32,46 @@ def get_bot_token() -> str:
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Recipe Bot Commands:\n"
-        "/add_recipe <name> - Add a new recipe\n"
-        "/add_ing <recipe|ingredient|quantity> - Add ingredient\n"
-        "/list - Show all recipes\n"
-        "/shop <recipe1,recipe2> - Generate shopping list"
+        "/list - Show all recipes with IDs\n"
+        "/view <id> - View recipe ingredients by ID"
     )
-
-
-async def add_recipe(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("Usage: /add_recipe <recipe name>")
-        return
-
-    name = " ".join(context.args)
-    try:
-        recipe_id = db.add_recipe(name)
-        await update.message.reply_text(f"Added recipe: {name}")
-    except Exception as e:
-        if "UNIQUE" in str(e) or "Duplicate" in str(e):
-            await update.message.reply_text("Recipe already exists!")
-        else:
-            await update.message.reply_text(f"Error: {e}")
-
-
-async def add_ingredient(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("Usage: /add_ing <recipe|ingredient|quantity>")
-        return
-
-    text = " ".join(context.args)
-    parts = text.split("|")
-    if len(parts) != 3:
-        await update.message.reply_text("Usage: /add_ing <recipe|ingredient|quantity>")
-        return
-
-    recipe_name, ingredient, quantity = [p.strip() for p in parts]
-    recipe = db.get_recipe_by_name(recipe_name)
-    if not recipe:
-        await update.message.reply_text(f"Recipe '{recipe_name}' not found")
-        return
-
-    db.add_ingredient(recipe[0], ingredient, quantity)
-    await update.message.reply_text(f"Added {quantity} {ingredient} to {recipe_name}")
 
 
 async def list_recipes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     recipes = db.get_recipes()
     if not recipes:
-        await update.message.reply_text("No recipes yet. Add one with /add_recipe")
+        await update.message.reply_text("No recipes yet.")
         return
 
-    text = "Recipes:\n" + "\n".join(f"- {name}" for _, name in recipes)
+    text = "Recipes:\n" + "\n".join(f"{id}. {name}" for id, name in recipes)
     await update.message.reply_text(text)
 
 
-async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def view_recipe(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("Usage: /shop <recipe1,recipe2,...>")
+        await update.message.reply_text("Usage: /view <id>")
         return
 
-    recipe_names = [n.strip() for n in " ".join(context.args).split(",")]
-    recipe_ids = []
-
-    for name in recipe_names:
-        recipe = db.get_recipe_by_name(name)
-        if recipe:
-            recipe_ids.append(recipe[0])
-        else:
-            await update.message.reply_text(f"Recipe '{name}' not found")
-            return
-
-    shopping_list = db.generate_shopping_list(recipe_ids)
-    if not shopping_list:
-        await update.message.reply_text("No ingredients found")
+    try:
+        recipe_id = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("Please provide a valid recipe ID (number)")
         return
 
-    text = "Shopping List:\n" + "\n".join(
-        f"- {ingredient}: {quantities}" for ingredient, quantities in shopping_list
-    )
-    await update.message.reply_text(text)
+    recipe = db.get_recipe_by_id(recipe_id)
+    if not recipe:
+        await update.message.reply_text(f"Recipe with ID {recipe_id} not found")
+        return
+
+    ingredients = db.get_recipe_ingredients(recipe[0])
+    if not ingredients:
+        await update.message.reply_text(f"{recipe[1]} has no ingredients yet")
+        return
+
+    lines = [f"{recipe[1]}:"]
+    for _, ing_name, quantity in ingredients:
+        lines.append(f"- {ing_name}: {quantity}")
+    await update.message.reply_text("\n".join(lines))
 
 
 def main():
@@ -119,10 +80,8 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", start))
-    app.add_handler(CommandHandler("add_recipe", add_recipe))
-    app.add_handler(CommandHandler("add_ing", add_ingredient))
     app.add_handler(CommandHandler("list", list_recipes))
-    app.add_handler(CommandHandler("shop", shop))
+    app.add_handler(CommandHandler("view", view_recipe))
 
     logger.info("Bot starting...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)

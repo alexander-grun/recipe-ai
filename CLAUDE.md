@@ -44,9 +44,16 @@ This is a recipe management app with two interfaces sharing a cloud database:
 
 **DuckDB version** - Must use `duckdb==1.4.4` for MotherDuck compatibility. Newer versions are not yet supported.
 
+## Streamlit Rules
+
+- Use `width='stretch'` instead of `use_container_width=True` (deprecated, removed after 2025-12-31)
+- Use `width='content'` instead of `use_container_width=False`
+- Navigation uses `st.navigation()` with `position="top"` for horizontal menu
+
 ## Database Schema
 
 ```sql
 recipes(id INTEGER PK, name VARCHAR UNIQUE)
-ingredients(id INTEGER PK, recipe_id FK, ingredient VARCHAR, quantity VARCHAR)
+ingredients(id INTEGER PK, name VARCHAR UNIQUE)
+recipe_ingredients(id INTEGER PK, recipe_id FK, ingredient_id FK, quantity VARCHAR, UNIQUE(recipe_id, ingredient_id))
 ```
