@@ -624,7 +624,8 @@ def get_telegram_users() -> list[tuple[int, str | None, str | None]]:
 def get_telegram_user_count() -> int:
     """Get count of saved Telegram users."""
     con = get_connection()
-    return con.execute("SELECT COUNT(*) FROM telegram_users").fetchone()[0]
+    result = con.execute("SELECT COUNT(*) FROM telegram_users").fetchone()
+    return result[0] if result else 0
 
 
 def get_recipes_for_ingredient(ingredient_id: int) -> list[tuple[int, str]]:
