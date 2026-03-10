@@ -547,9 +547,8 @@ def generate_shopping_list(recipe_ids: list[int]) -> list[tuple[str, str]]:
     con = get_connection()
     placeholders = ",".join(["?"] * len(recipe_ids))
     return con.execute(f"""
-        SELECT i.name, STRING_AGG(ri.quantity || ' (' || r.name || ')', ', ') as quantities
+        SELECT i.name, STRING_AGG(ri.quantity, ', ') as quantities
         FROM recipe_ingredients ri
-        JOIN recipes r ON ri.recipe_id = r.id
         JOIN ingredients i ON ri.ingredient_id = i.id
         WHERE ri.recipe_id IN ({placeholders})
         GROUP BY i.name
