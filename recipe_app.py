@@ -145,15 +145,29 @@ def home_page():
                 recipes_text = "\n".join(recipes_lines)
 
             # Build shopping list message
+            # First: items without specific store (grouped by category)
+            # Last: items with specific store (grouped by store)
             list_lines = ["Shopping List:", ""]
+            store_specific = {}  # {store: [items]}
+
             for cat in sorted(by_cat_store.keys(), key=lambda x: (x == "Other", x)):
-                list_lines.append(f"**{cat}**")
                 stores = by_cat_store[cat]
-                # Sort: empty store (any) first, then alphabetical
-                for store in sorted(stores.keys(), key=lambda x: (x != "", x)):
+                # Add items without specific store
+                if "" in stores:
+                    list_lines.append(f"**{cat}**")
+                    list_lines.extend(f"  {item}" for item in stores[""])
+                    list_lines.append("")
+                # Collect store-specific items
+                for store, items in stores.items():
                     if store:
-                        list_lines.append(f"  @ {store}:")
-                    list_lines.extend(f"    {item}" if store else f"  {item}" for item in stores[store])
+                        if store not in store_specific:
+                            store_specific[store] = []
+                        store_specific[store].extend(items)
+
+            # Add store-specific items at the end
+            for store in sorted(store_specific.keys()):
+                list_lines.append(f"**@ {store}:**")
+                list_lines.extend(f"  {item}" for item in store_specific[store])
                 list_lines.append("")
 
             # Display combined view
