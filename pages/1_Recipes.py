@@ -50,7 +50,10 @@ with tab_view:
                 st.info("No ingredients yet. Add some below!")
             else:
                 for ing_id, ing_name, quantity in ingredients:
-                    st.write(f"- **{ing_name}**: {quantity}")
+                    if quantity:
+                        st.write(f"- **{ing_name}**: {quantity}")
+                    else:
+                        st.write(f"- **{ing_name}**")
 
                     # Inline edit/delete
                     if st.session_state.get("editing_ing") == ing_id:
@@ -114,20 +117,17 @@ with tab_view:
                                in zip(ing_display, available_ingredients)}
                     selected_display = st.selectbox("Select Ingredient", options=ing_display, key="view_add_existing_select")
                     selected_id, selected_name_val = ing_map[selected_display]
-                    quantity = st.text_input("Quantity", key="view_existing_qty")
+                    quantity = st.text_input("Quantity (optional)", key="view_existing_qty")
                     if st.button("Add to Recipe", key="view_add_existing"):
-                        if quantity.strip():
-                            db.add_ingredient_to_recipe(recipe_id, selected_id, quantity.strip())
-                            st.session_state["recipe_success_msg"] = f"Added {selected_name_val}"
-                            st.rerun()
-                        else:
-                            st.warning("Please enter a quantity")
+                        db.add_ingredient_to_recipe(recipe_id, selected_id, quantity.strip())
+                        st.session_state["recipe_success_msg"] = f"Added {selected_name_val}"
+                        st.rerun()
                 else:
                     st.info("All catalog ingredients are in this recipe.")
 
             with view_tab_new:
                 new_ing_name = st.text_input("New Ingredient Name", key="view_new_ing_name")
-                new_ing_qty = st.text_input("Quantity", key="view_new_qty")
+                new_ing_qty = st.text_input("Quantity (optional)", key="view_new_qty")
 
                 categories = db.get_categories()
                 cat_options = ["No category"] + [name for _, name in categories]
@@ -140,7 +140,7 @@ with tab_view:
                 selected_store = st.selectbox("Sold at (optional)", options=store_options, key="view_new_ing_store")
 
                 if st.button("Create & Add", key="view_add_new"):
-                    if new_ing_name.strip() and new_ing_qty.strip():
+                    if new_ing_name.strip():
                         cat_id = cat_map.get(selected_cat) if selected_cat != "No category" else None
                         store_id = store_map.get(selected_store) if selected_store != "Any store" else None
                         ing_id = db.get_or_create_ingredient(new_ing_name.strip(), cat_id, store_id)
@@ -151,7 +151,7 @@ with tab_view:
                             st.session_state["recipe_success_msg"] = f"Added {new_ing_name}"
                             st.rerun()
                     else:
-                        st.warning("Please enter both ingredient name and quantity")
+                        st.warning("Please enter an ingredient name")
 
         # Recipe Settings
         with st.expander("Recipe Settings"):
@@ -212,7 +212,10 @@ with tab_create:
                     parts.append(f"@ {store_name}")
                 display = parts[0] if len(parts) == 1 else f"{parts[0]} ({', '.join(parts[1:])})"
 
-                st.write(f"- **{display}**: {qty}")
+                if qty:
+                    st.write(f"- **{display}**: {qty}")
+                else:
+                    st.write(f"- **{display}**")
                 if st.button("Remove", key=f"create_remove_{i}"):
                     st.session_state["new_recipe_ingredients"].pop(i)
                     st.rerun()
@@ -238,14 +241,11 @@ with tab_create:
                                for display, (_, name, cat_name, store_name) in zip(ing_display, available)}
                     selected_display = st.selectbox("Select Ingredient", options=ing_display, key="create_cat_select")
                     selected_ing, cat_name, store_name = ing_map[selected_display]
-                    quantity = st.text_input("Quantity", key="create_cat_qty")
+                    quantity = st.text_input("Quantity (optional)", key="create_cat_qty")
                     if st.button("Add", key="create_add_cat"):
-                        if quantity.strip():
-                            st.session_state["new_recipe_ingredients"].append(
-                                (selected_ing, quantity.strip(), cat_name, store_name))
-                            st.rerun()
-                        else:
-                            st.warning("Please enter a quantity")
+                        st.session_state["new_recipe_ingredients"].append(
+                            (selected_ing, quantity.strip(), cat_name, store_name))
+                        st.rerun()
                 else:
                     st.info("All catalog ingredients added.")
             else:
@@ -253,7 +253,7 @@ with tab_create:
 
         with create_tab_new:
             new_ing = st.text_input("New Ingredient Name", key="create_new_ing")
-            new_qty = st.text_input("Quantity", key="create_new_qty")
+            new_qty = st.text_input("Quantity (optional)", key="create_new_qty")
 
             categories = db.get_categories()
             cat_options = ["No category"] + [name for _, name in categories]
@@ -264,7 +264,7 @@ with tab_create:
             selected_store = st.selectbox("Sold at (optional)", options=store_options, key="create_new_ing_store")
 
             if st.button("Add", key="create_add_new"):
-                if new_ing.strip() and new_qty.strip():
+                if new_ing.strip():
                     if new_ing.strip().lower() in added_names:
                         st.error("This ingredient is already added!")
                     else:
@@ -274,7 +274,7 @@ with tab_create:
                              selected_store if selected_store != "Any store" else None))
                         st.rerun()
                 else:
-                    st.warning("Please enter both ingredient name and quantity")
+                    st.warning("Please enter an ingredient name")
 
     # Save / Clear
     st.divider()
