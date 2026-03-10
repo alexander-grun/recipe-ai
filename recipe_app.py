@@ -20,6 +20,10 @@ def home_page():
     # Initialize extra items session state
     if "extra_items" not in st.session_state:
         st.session_state["extra_items"] = []  # List of ingredient IDs
+    if "excluded_items" not in st.session_state:
+        st.session_state["excluded_items"] = set()
+    if "last_selected_recipes" not in st.session_state:
+        st.session_state["last_selected_recipes"] = []
 
     recipes = db.get_recipes()
 
@@ -34,6 +38,11 @@ def home_page():
         options=list(recipe_options.keys()),
         placeholder="Choose recipes..."
     )
+
+    # Reset excluded items when recipe selection changes
+    if selected_recipes != st.session_state["last_selected_recipes"]:
+        st.session_state["excluded_items"] = set()
+        st.session_state["last_selected_recipes"] = selected_recipes
 
     # Extra items section - for one-off items not in recipes
     all_ingredients = db.get_all_ingredients()
@@ -105,37 +114,94 @@ def home_page():
             store_name = info[4] or ""
 
             if total_qty > 0:
-                item_text = f"- {ingredient}: {total_qty}"
+                item_text = f"{ingredient}: {total_qty}"
             elif occurrences > 1:
-                item_text = f"- {ingredient} x{occurrences}"
+                item_text = f"{ingredient} x{occurrences}"
             else:
-                item_text = f"- {ingredient}"
+                item_text = ingredient
+
+            item_key = f"recipe_{ingredient}"  # Unique key for checkbox state
 
             if cat_name not in by_cat_store:
                 by_cat_store[cat_name] = {}
             if store_name not in by_cat_store[cat_name]:
                 by_cat_store[cat_name][store_name] = []
-            by_cat_store[cat_name][store_name].append(item_text)
+            by_cat_store[cat_name][store_name].append((item_key, item_text))
 
         # Add extra items (can be int IDs or string free-text)
-        for item in st.session_state["extra_items"]:
+        for idx, item in enumerate(st.session_state["extra_items"]):
             if isinstance(item, int) and item in ingredient_lookup:
                 name, _, cat_name, _, store_name = ingredient_lookup[item]
                 cat_name = cat_name or "Other"
                 store_name = store_name or ""
+                item_key = f"extra_{item}"
             else:
                 name = str(item)
                 cat_name = "Other"
                 store_name = ""
-            item_text = f"- {name}"
+                item_key = f"extra_custom_{idx}_{name}"
+            item_text = name
 
             if cat_name not in by_cat_store:
                 by_cat_store[cat_name] = {}
             if store_name not in by_cat_store[cat_name]:
                 by_cat_store[cat_name][store_name] = []
-            by_cat_store[cat_name][store_name].append(item_text)
+            by_cat_store[cat_name][store_name].append((item_key, item_text))
 
         if by_cat_store:
+            # Step 2: Modify Ingredients - checkboxes to include/exclude items
+            st.subheader("Modify Ingredients")
+
+            # Organize items for display: categories without store first, then store-specific
+            store_specific = {}  # {store: [(item_key, item_text)]}
+
+            for cat in sorted(by_cat_store.keys(), key=lambda x: (x == "Other", x)):
+                stores = by_cat_store[cat]
+                # Items without specific store - show under category
+                if "" in stores:
+                    st.markdown(f"**{cat}**")
+                    for item_key, item_text in stores[""]:
+                        is_checked = item_key not in st.session_state["excluded_items"]
+                        if st.checkbox(item_text, value=is_checked, key=f"cb_{item_key}"):
+                            st.session_state["excluded_items"].discard(item_key)
+                        else:
+                            st.session_state["excluded_items"].add(item_key)
+                # Collect store-specific items
+                for store, items in stores.items():
+                    if store:
+                        if store not in store_specific:
+                            store_specific[store] = []
+                        store_specific[store].extend(items)
+
+            # Show store-specific items at the end
+            for store in sorted(store_specific.keys()):
+                st.markdown(f"**@ {store}:**")
+                for item_key, item_text in store_specific[store]:
+                    is_checked = item_key not in st.session_state["excluded_items"]
+                    if st.checkbox(item_text, value=is_checked, key=f"cb_{item_key}"):
+                        st.session_state["excluded_items"].discard(item_key)
+                    else:
+                        st.session_state["excluded_items"].add(item_key)
+
+            # Step 3: Preview & Send - build final list from checked items only
+            # Helper function for send button logic
+            def send_to_telegram(recipes_plain, list_plain):
+                total_success = 0
+                total_fail = 0
+                if recipes_plain:
+                    success, fail = telegram_sender.send_to_all_users(recipes_plain)
+                    total_success = max(total_success, success)
+                    total_fail = max(total_fail, fail)
+                success, fail = telegram_sender.send_to_all_users(list_plain)
+                total_success = max(total_success, success)
+                total_fail = max(total_fail, fail)
+                if total_success > 0:
+                    st.success(f"Sent to {total_success} user(s)")
+                if total_fail > 0:
+                    st.error(f"Failed for {total_fail} user(s)")
+
+            st.subheader("Preview & Send")
+
             # Build recipes message (if any recipes selected)
             recipes_text = ""
             if selected_recipes:
@@ -144,65 +210,66 @@ def home_page():
                     recipes_lines.append(f"- {recipe}")
                 recipes_text = "\n".join(recipes_lines)
 
-            # Build shopping list message
-            # First: items without specific store (grouped by category)
-            # Last: items with specific store (grouped by store)
+            # Build shopping list from checked items only
             list_lines = ["Shopping List:", ""]
-            store_specific = {}  # {store: [items]}
+            store_specific_text = {}
 
             for cat in sorted(by_cat_store.keys(), key=lambda x: (x == "Other", x)):
                 stores = by_cat_store[cat]
-                # Add items without specific store
+                # Items without specific store
                 if "" in stores:
-                    list_lines.append(f"**{cat}**")
-                    list_lines.extend(f"  {item}" for item in stores[""])
-                    list_lines.append("")
+                    cat_items = [(k, t) for k, t in stores[""] if k not in st.session_state["excluded_items"]]
+                    if cat_items:
+                        list_lines.append(f"**{cat}**")
+                        list_lines.extend(f"  - {t}" for _, t in cat_items)
+                        list_lines.append("")
                 # Collect store-specific items
                 for store, items in stores.items():
                     if store:
-                        if store not in store_specific:
-                            store_specific[store] = []
-                        store_specific[store].extend(items)
+                        store_items = [(k, t) for k, t in items if k not in st.session_state["excluded_items"]]
+                        if store_items:
+                            if store not in store_specific_text:
+                                store_specific_text[store] = []
+                            store_specific_text[store].extend(store_items)
 
             # Add store-specific items at the end
-            for store in sorted(store_specific.keys()):
+            for store in sorted(store_specific_text.keys()):
                 list_lines.append(f"**@ {store}:**")
-                list_lines.extend(f"  {item}" for item in store_specific[store])
+                list_lines.extend(f"  - {t}" for _, t in store_specific_text[store])
                 list_lines.append("")
 
-            # Display combined view
-            display_lines = []
-            if recipes_text:
-                display_lines.append(recipes_text)
-                display_lines.append("")
-            display_lines.extend(list_lines)
+            # Check if any items are included
+            has_items = len(list_lines) > 2  # More than just header
 
-            with st.container(border=True):
-                st.markdown("\n".join(display_lines))
+            if has_items:
+                # Build plain text versions for Telegram
+                recipes_plain = recipes_text
+                list_plain = "\n".join(list_lines).replace("**", "")
 
-            # Plain text versions for Telegram
-            recipes_plain = recipes_text
-            list_plain = "\n".join(list_lines).replace("**", "")
+                # Top send button
+                user_count = db.get_telegram_user_count()
+                if user_count == 0:
+                    st.button(":material/send: Send to Telegram", disabled=True, type="primary", key="send_top", help="No users registered. Start the bot and send /start")
+                elif st.button(":material/send: Send to Telegram", type="primary", key="send_top"):
+                    send_to_telegram(recipes_plain, list_plain)
 
-            user_count = db.get_telegram_user_count()
-            if user_count == 0:
-                st.button(":material/send: Send to Telegram", disabled=True, type="primary", help="No users registered. Start the bot and send /start")
-            elif st.button(":material/send: Send to Telegram", type="primary"):
-                total_success = 0
-                total_fail = 0
-                # Send recipes first (if any)
-                if recipes_plain:
-                    success, fail = telegram_sender.send_to_all_users(recipes_plain)
-                    total_success = max(total_success, success)
-                    total_fail = max(total_fail, fail)
-                # Send shopping list
-                success, fail = telegram_sender.send_to_all_users(list_plain)
-                total_success = max(total_success, success)
-                total_fail = max(total_fail, fail)
-                if total_success > 0:
-                    st.success(f"Sent to {total_success} user(s)")
-                if total_fail > 0:
-                    st.error(f"Failed for {total_fail} user(s)")
+                # Display preview
+                display_lines = []
+                if recipes_text:
+                    display_lines.append(recipes_text)
+                    display_lines.append("")
+                display_lines.extend(list_lines)
+
+                with st.container(border=True):
+                    st.markdown("\n".join(display_lines))
+
+                # Bottom send button
+                if user_count == 0:
+                    st.button(":material/send: Send to Telegram", disabled=True, type="primary", key="send_bottom", help="No users registered. Start the bot and send /start")
+                elif st.button(":material/send: Send to Telegram", type="primary", key="send_bottom"):
+                    send_to_telegram(recipes_plain, list_plain)
+            else:
+                st.info("All items excluded. Check some items above to include them.")
 
 
 # Define pages
