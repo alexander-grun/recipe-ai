@@ -90,7 +90,7 @@ def init_db():
             id INTEGER PRIMARY KEY,
             recipe_id INTEGER NOT NULL,
             ingredient_id INTEGER NOT NULL,
-            quantity VARCHAR NOT NULL,
+            quantity INTEGER,
             UNIQUE(recipe_id, ingredient_id)
         )
     """)
@@ -136,6 +136,32 @@ def init_db():
         con.execute("ALTER TABLE ingredients ADD COLUMN store_id INTEGER")
     except Exception:
         pass  # Column already exists
+
+    # Migration: convert quantity from VARCHAR to INTEGER
+    columns = con.execute("""
+        SELECT column_name, data_type FROM duckdb_columns()
+        WHERE database_name = 'recipe_app' AND table_name = 'recipe_ingredients'
+    """).fetchall()
+    qty_col = next((c for c in columns if c[0] == 'quantity'), None)
+    if qty_col and qty_col[1] == 'VARCHAR':
+        # Recreate table with INTEGER quantity
+        con.execute("""
+            CREATE TABLE recipe_ingredients_new (
+                id INTEGER PRIMARY KEY,
+                recipe_id INTEGER NOT NULL,
+                ingredient_id INTEGER NOT NULL,
+                quantity INTEGER,
+                UNIQUE(recipe_id, ingredient_id)
+            )
+        """)
+        # Migrate data - try to parse quantity as integer, otherwise NULL
+        con.execute("""
+            INSERT INTO recipe_ingredients_new (id, recipe_id, ingredient_id, quantity)
+            SELECT id, recipe_id, ingredient_id, TRY_CAST(quantity AS INTEGER)
+            FROM recipe_ingredients
+        """)
+        con.execute("DROP TABLE recipe_ingredients")
+        con.execute("ALTER TABLE recipe_ingredients_new RENAME TO recipe_ingredients")
 
 
 def _migrate_to_new_schema(con):
@@ -451,8 +477,8 @@ def get_or_create_ingredient(name: str, category_id: int | None = None, store_id
 
 # ============ Recipe-Ingredient CRUD ============
 
-def add_ingredient_to_recipe(recipe_id: int, ingredient_id: int, quantity: str):
-    """Add an ingredient to a recipe with quantity."""
+def add_ingredient_to_recipe(recipe_id: int, ingredient_id: int, quantity: int | None):
+    """Add an ingredient to a recipe with optional quantity."""
     con = get_connection()
     ri_id = con.execute("SELECT nextval('recipe_ingredients_seq')").fetchone()[0]
     con.execute("""
@@ -462,7 +488,7 @@ def add_ingredient_to_recipe(recipe_id: int, ingredient_id: int, quantity: str):
     clear_cache()
 
 
-def update_recipe_ingredient(recipe_id: int, ingredient_id: int, quantity: str):
+def update_recipe_ingredient(recipe_id: int, ingredient_id: int, quantity: int | None):
     """Update quantity of an ingredient in a recipe."""
     con = get_connection()
     con.execute("""
@@ -481,14 +507,14 @@ def remove_ingredient_from_recipe(recipe_id: int, ingredient_id: int):
     clear_cache()
 
 
-def get_recipe_ingredients(recipe_id: int) -> list[tuple[int, str, str]]:
+def get_recipe_ingredients(recipe_id: int) -> list[tuple[int, str, int | None]]:
     """Get ingredients for a single recipe: (ingredient_id, name, quantity)."""
     if _is_streamlit_context():
         return _get_recipe_ingredients_cached(recipe_id)
     return _get_recipe_ingredients_uncached(recipe_id)
 
 
-def _get_recipe_ingredients_uncached(recipe_id: int) -> list[tuple[int, str, str]]:
+def _get_recipe_ingredients_uncached(recipe_id: int) -> list[tuple[int, str, int | None]]:
     con = get_connection()
     return con.execute("""
         SELECT i.id, i.name, ri.quantity
@@ -518,13 +544,13 @@ def _get_recipe_ingredients_cached(recipe_id: int):
 
 # ============ Legacy compatibility / Shopping List ============
 
-def add_ingredient(recipe_id: int, ingredient: str, quantity: str):
+def add_ingredient(recipe_id: int, ingredient: str, quantity: int | None):
     """Legacy function: add ingredient to recipe by name."""
     ingredient_id = get_or_create_ingredient(ingredient)
     add_ingredient_to_recipe(recipe_id, ingredient_id, quantity)
 
 
-def get_ingredients(recipe_ids: list[int]) -> list[tuple[str, str, str]]:
+def get_ingredients(recipe_ids: list[int]) -> list[tuple[str, str, int | None]]:
     """Get ingredients for multiple recipes: (recipe_name, ingredient_name, quantity)."""
     if not recipe_ids:
         return []
@@ -540,14 +566,21 @@ def get_ingredients(recipe_ids: list[int]) -> list[tuple[str, str, str]]:
     """, recipe_ids).fetchall()
 
 
-def generate_shopping_list(recipe_ids: list[int]) -> list[tuple[str, str]]:
-    """Generate aggregated shopping list from multiple recipes."""
+def generate_shopping_list(recipe_ids: list[int]) -> list[tuple[str, int, int]]:
+    """Generate aggregated shopping list from multiple recipes.
+
+    Returns: (ingredient_name, total_quantity, occurrences)
+    - total_quantity: sum of quantities where quantity is not NULL
+    - occurrences: number of times this ingredient appears across recipes
+    """
     if not recipe_ids:
         return []
     con = get_connection()
     placeholders = ",".join(["?"] * len(recipe_ids))
     return con.execute(f"""
-        SELECT i.name, STRING_AGG(ri.quantity, ', ') as quantities
+        SELECT i.name,
+               COALESCE(SUM(ri.quantity), 0) as total_qty,
+               COUNT(*) as occurrences
         FROM recipe_ingredients ri
         JOIN ingredients i ON ri.ingredient_id = i.id
         WHERE ri.recipe_id IN ({placeholders})

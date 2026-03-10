@@ -57,12 +57,13 @@ with tab_view:
 
                     # Inline edit/delete
                     if st.session_state.get("editing_ing") == ing_id:
-                        new_qty = st.text_input("New quantity", value=quantity, key=f"view_edit_qty_{ing_id}")
+                        new_qty = st.number_input("New quantity", min_value=0, value=quantity or 0, step=1, key=f"view_edit_qty_{ing_id}")
+                        new_qty_val = new_qty if new_qty > 0 else None
                         col_save, col_del, col_cancel = st.columns(3)
                         with col_save:
                             if st.button("Save", key=f"view_save_{ing_id}"):
-                                if new_qty.strip() and new_qty != quantity:
-                                    db.update_recipe_ingredient(recipe_id, ing_id, new_qty.strip())
+                                if new_qty_val != quantity:
+                                    db.update_recipe_ingredient(recipe_id, ing_id, new_qty_val)
                                     st.session_state["recipe_success_msg"] = "Quantity updated!"
                                 st.session_state.pop("editing_ing", None)
                                 st.rerun()
@@ -117,9 +118,10 @@ with tab_view:
                                in zip(ing_display, available_ingredients)}
                     selected_display = st.selectbox("Select Ingredient", options=ing_display, key="view_add_existing_select")
                     selected_id, selected_name_val = ing_map[selected_display]
-                    quantity = st.text_input("Quantity (optional)", key="view_existing_qty")
+                    quantity = st.number_input("Quantity (optional, 0 = none)", min_value=0, value=0, step=1, key="view_existing_qty")
+                    qty_val = quantity if quantity > 0 else None
                     if st.button("Add to Recipe", key="view_add_existing"):
-                        db.add_ingredient_to_recipe(recipe_id, selected_id, quantity.strip())
+                        db.add_ingredient_to_recipe(recipe_id, selected_id, qty_val)
                         st.session_state["recipe_success_msg"] = f"Added {selected_name_val}"
                         st.rerun()
                 else:
@@ -127,7 +129,8 @@ with tab_view:
 
             with view_tab_new:
                 new_ing_name = st.text_input("New Ingredient Name", key="view_new_ing_name")
-                new_ing_qty = st.text_input("Quantity (optional)", key="view_new_qty")
+                new_ing_qty = st.number_input("Quantity (optional, 0 = none)", min_value=0, value=0, step=1, key="view_new_qty")
+                new_ing_qty_val = new_ing_qty if new_ing_qty > 0 else None
 
                 categories = db.get_categories()
                 cat_options = ["No category"] + [name for _, name in categories]
@@ -147,7 +150,7 @@ with tab_view:
                         if ing_id in existing_ing_ids:
                             st.error("This ingredient is already in the recipe!")
                         else:
-                            db.add_ingredient_to_recipe(recipe_id, ing_id, new_ing_qty.strip())
+                            db.add_ingredient_to_recipe(recipe_id, ing_id, new_ing_qty_val)
                             st.session_state["recipe_success_msg"] = f"Added {new_ing_name}"
                             st.rerun()
                     else:
@@ -241,10 +244,11 @@ with tab_create:
                                for display, (_, name, cat_name, store_name) in zip(ing_display, available)}
                     selected_display = st.selectbox("Select Ingredient", options=ing_display, key="create_cat_select")
                     selected_ing, cat_name, store_name = ing_map[selected_display]
-                    quantity = st.text_input("Quantity (optional)", key="create_cat_qty")
+                    quantity = st.number_input("Quantity (optional, 0 = none)", min_value=0, value=0, step=1, key="create_cat_qty")
+                    qty_val = quantity if quantity > 0 else None
                     if st.button("Add", key="create_add_cat"):
                         st.session_state["new_recipe_ingredients"].append(
-                            (selected_ing, quantity.strip(), cat_name, store_name))
+                            (selected_ing, qty_val, cat_name, store_name))
                         st.rerun()
                 else:
                     st.info("All catalog ingredients added.")
@@ -253,7 +257,8 @@ with tab_create:
 
         with create_tab_new:
             new_ing = st.text_input("New Ingredient Name", key="create_new_ing")
-            new_qty = st.text_input("Quantity (optional)", key="create_new_qty")
+            new_qty = st.number_input("Quantity (optional, 0 = none)", min_value=0, value=0, step=1, key="create_new_qty")
+            new_qty_val = new_qty if new_qty > 0 else None
 
             categories = db.get_categories()
             cat_options = ["No category"] + [name for _, name in categories]
@@ -269,7 +274,7 @@ with tab_create:
                         st.error("This ingredient is already added!")
                     else:
                         st.session_state["new_recipe_ingredients"].append(
-                            (new_ing.strip(), new_qty.strip(),
+                            (new_ing.strip(), new_qty_val,
                              selected_cat if selected_cat != "No category" else None,
                              selected_store if selected_store != "Any store" else None))
                         st.rerun()

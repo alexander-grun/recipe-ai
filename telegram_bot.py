@@ -64,7 +64,10 @@ async def view_recipe(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     lines = [f"{recipe[1]}:"]
     for _, ing_name, quantity in ingredients:
-        lines.append(f"- {ing_name}: {quantity}")
+        if quantity:
+            lines.append(f"- {ing_name}: {quantity}")
+        else:
+            lines.append(f"- {ing_name}")
     await update.message.reply_text("\n".join(lines))
 
 

@@ -42,16 +42,24 @@ def home_page():
 
             # Build text output grouped by category, then by store
             by_cat_store = {}  # {category: {store: [items]}}
-            for ingredient, quantities in shopping_list:
+            for ingredient, total_qty, occurrences in shopping_list:
                 info = all_ingredients.get(ingredient, (None, None, None, None))
                 cat_name = info[1] or "Other"
                 store_name = info[3] or ""  # Empty string for "any store"
+
+                # Format: show quantity if > 0, else "xN" if repeated, else just name
+                if total_qty > 0:
+                    item_text = f"- {ingredient}: {total_qty}"
+                elif occurrences > 1:
+                    item_text = f"- {ingredient} x{occurrences}"
+                else:
+                    item_text = f"- {ingredient}"
 
                 if cat_name not in by_cat_store:
                     by_cat_store[cat_name] = {}
                 if store_name not in by_cat_store[cat_name]:
                     by_cat_store[cat_name][store_name] = []
-                by_cat_store[cat_name][store_name].append(f"- {ingredient}: {quantities}")
+                by_cat_store[cat_name][store_name].append(item_text)
 
             text_lines = [f"Shopping List: {', '.join(selected_recipes)}", ""]
             for cat in sorted(by_cat_store.keys(), key=lambda x: (x == "Other", x)):
