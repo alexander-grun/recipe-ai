@@ -605,3 +605,11 @@ def get_recipes_for_ingredient(ingredient_id: int) -> list[tuple[int, str]]:
         WHERE ri.ingredient_id = ?
         ORDER BY r.name
     """, [ingredient_id]).fetchall()
+
+
+def delete_ingredient(ingredient_id: int):
+    """Delete an ingredient and remove it from all recipes."""
+    con = get_connection()
+    con.execute("DELETE FROM recipe_ingredients WHERE ingredient_id = ?", [ingredient_id])
+    con.execute("DELETE FROM ingredients WHERE id = ?", [ingredient_id])
+    clear_cache()

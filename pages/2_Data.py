@@ -284,3 +284,24 @@ with tab_ingredients:
                 st.write(", ".join(name for _, name in used_in))
             else:
                 st.write("Not used in any recipes.")
+
+            # Delete
+            st.divider()
+            if used_in:
+                st.caption("Deleting will remove this ingredient from all recipes.")
+            if st.button("Delete Ingredient", key="del_ing", type="secondary"):
+                st.session_state["confirm_delete_ing"] = True
+
+            if st.session_state.get("confirm_delete_ing"):
+                st.warning(f"Delete '{selected_name}'?")
+                col_yes, col_no = st.columns(2)
+                with col_yes:
+                    if st.button("Yes", key="confirm_del_ing_yes", type="primary"):
+                        db.delete_ingredient(selected_id)
+                        st.session_state["confirm_delete_ing"] = False
+                        st.session_state["manage_data_success_msg"] = f"Deleted: {selected_name}"
+                        st.rerun()
+                with col_no:
+                    if st.button("Cancel", key="confirm_del_ing_no"):
+                        st.session_state["confirm_delete_ing"] = False
+                        st.rerun()
