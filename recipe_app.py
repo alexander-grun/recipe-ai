@@ -78,13 +78,10 @@ def home_page():
             # Copy-friendly text
             plain_text = "\n".join(text_lines).replace("**", "")
 
-            # Action buttons stacked for mobile
-            st.download_button("Download List", plain_text, "shopping_list.txt", "text/plain")
-
             user_count = db.get_telegram_user_count()
             if user_count == 0:
-                st.button("Send to Telegram", disabled=True, help="No users registered. Start the bot and send /start")
-            elif st.button("Send to Telegram"):
+                st.button(":material/send: Send to Telegram", disabled=True, type="primary", help="No users registered. Start the bot and send /start")
+            elif st.button(":material/send: Send to Telegram", type="primary"):
                 success, fail = telegram_sender.send_to_all_users(plain_text)
                 if success > 0:
                     st.success(f"Sent to {success} user(s)")
