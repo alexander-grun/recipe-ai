@@ -1,25 +1,22 @@
 import duckdb
 from utils import get_secret
 
-_connection = None
+_db_created = False
 
 
 def get_connection():
-    global _connection
-    if _connection is not None:
-        # Check if connection is still valid
-        try:
-            _connection.execute("SELECT 1").fetchone()
-        except Exception:
-            _connection = None
+    """Get a fresh DuckDB connection each call (avoids corruption on Streamlit Cloud)."""
+    global _db_created
+    token = get_secret("MOTHERDUCK_TOKEN")
 
-    if _connection is None:
-        token = get_secret("MOTHERDUCK_TOKEN")
+    # Ensure database exists (only once per process)
+    if not _db_created:
         temp_con = duckdb.connect(f"md:?motherduck_token={token}")
         temp_con.execute("CREATE DATABASE IF NOT EXISTS recipe_app")
         temp_con.close()
-        _connection = duckdb.connect(f"md:recipe_app?motherduck_token={token}")
-    return _connection
+        _db_created = True
+
+    return duckdb.connect(f"md:recipe_app?motherduck_token={token}")
 
 
 def _is_streamlit_context():
